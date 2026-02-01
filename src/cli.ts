@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-import chalk from "chalk";
+import { Chalk } from "chalk";
+import stringWidth from "string-width";
 import yargs from "yargs";
 import { hideBin } from "yargs/helpers";
 
@@ -23,6 +24,7 @@ type OrderResponse = {
 
 const API_URL = "https://rainbowbridge.anker.com/order-track/query";
 const PRINTER_SKU = "V8260J40";
+const chalk = new Chalk({ level: process.stdout.isTTY ? 3 : 0 });
 
 const argv = yargs(hideBin(process.argv))
   .option("email", {
@@ -84,13 +86,66 @@ const formatTracking = (item: OrderItem) => {
 };
 
 const formatEta = (item: OrderItem) => {
-  if (item.change_deliver_time) {
-    return item.change_deliver_time;
+  const dateValue = item.change_deliver_time || item.local_delivery_time || "";
+  if (!dateValue) {
+    return "-";
   }
-  if (item.local_delivery_time) {
-    return item.local_delivery_time;
+  const normalized = dateValue
+    .replace(/\s+/g, " ")
+    .replace(/年/g, "-")
+    .replace(/月/g, "-")
+    .replace(/日/g, "")
+    .trim();
+  const match = normalized.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if (!match || match.length < 4) {
+    return dateValue;
   }
-  return "-";
+  const year = match[1];
+  const month = match[2];
+  const day = match[3];
+  if (!year || !month || !day) {
+    return dateValue;
+  }
+  return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
+};
+
+const stripAnsi = (value: string) => value.replace(/\x1b\[[0-9;]*m/g, "");
+
+const visibleWidth = (value: string) => stringWidth(stripAnsi(value));
+
+const padCell = (value: string, width: number) => {
+  const printableLength = visibleWidth(value);
+  const padding = Math.max(0, width - printableLength);
+  return `${value}${" ".repeat(padding)}`;
+};
+
+const renderTable = (rows: Array<Record<string, string | number>>) => {
+  const headers = Object.keys(rows[0] ?? {});
+  const widths = headers.map((header) => {
+    const headerLength = visibleWidth(header);
+    const maxCell = Math.max(
+      headerLength,
+      ...rows.map((row) => visibleWidth(String(row[header]))),
+    );
+    return maxCell;
+  });
+
+  const divider = `| ${widths.map((width) => "-".repeat(width)).join(" | ")} |`;
+  const headerLine = `| ${headers
+    .map((header, index) => padCell(header, widths[index] ?? 0))
+    .join(" | ")} |`;
+
+  console.log(divider);
+  console.log(headerLine);
+  console.log(divider);
+
+  rows.forEach((row) => {
+    const line = `| ${headers
+      .map((header, index) => padCell(String(row[header]), widths[index] ?? 0))
+      .join(" | ")} |`;
+    console.log(line);
+  });
+  console.log(divider);
 };
 
 const fetchOrder = async (): Promise<OrderResponse> => {
@@ -140,7 +195,7 @@ const printTable = (items: OrderItem[]) => {
       ETA: formatEta(item),
     };
   });
-  console.table(tableData);
+  renderTable(tableData);
 };
 
 const run = async () => {
