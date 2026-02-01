@@ -130,22 +130,28 @@ const renderTable = (rows: Array<Record<string, string | number>>) => {
     return maxCell;
   });
 
-  const divider = `| ${widths.map((width) => "-".repeat(width)).join(" | ")} |`;
-  const headerLine = `| ${headers
-    .map((header, index) => padCell(header, widths[index] ?? 0))
-    .join(" | ")} |`;
+  const buildBorder = (left: string, mid: string, right: string) =>
+    `${left}${widths.map((width) => "─".repeat(width + 2)).join(mid)}${right}`;
 
-  console.log(divider);
+  const topBorder = buildBorder("┌", "┬", "┐");
+  const headerDivider = buildBorder("├", "┼", "┤");
+  const bottomBorder = buildBorder("└", "┴", "┘");
+
+  const headerLine = `│ ${headers
+    .map((header, index) => padCell(header, widths[index] ?? 0))
+    .join(" │ ")} │`;
+
+  console.log(topBorder);
   console.log(headerLine);
-  console.log(divider);
+  console.log(headerDivider);
 
   rows.forEach((row) => {
-    const line = `| ${headers
+    const line = `│ ${headers
       .map((header, index) => padCell(String(row[header]), widths[index] ?? 0))
-      .join(" | ")} |`;
+      .join(" │ ")} │`;
     console.log(line);
   });
-  console.log(divider);
+  console.log(bottomBorder);
 };
 
 const fetchOrder = async (): Promise<OrderResponse> => {
